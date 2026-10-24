@@ -17,6 +17,37 @@ A multiplayer checkers game designed for **BanterVR**, built with **Banter Space
 1.  Clone the repository.
 2.  That's it! No build process is required.
 
+## SideQuest / Altspace Creator SDK (Snippet)
+
+In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `checkers`. Or paste it into `Assets/WebRoot/index.html` between the snippet section comments:
+
+```html
+<!-- snippet section -->
+<bs-snippet name="checkers" title="Checkers"
+  description="Synced multiplayer checkers board with a reset button."
+  script="https://checkers.firer.at/snippet.js"
+  room=""
+  position="0 1 2"
+  rotation="0 0 0"
+  scale="0.5"
+  lighting="unlit"
+  add-lights="true"
+  hide-ui="false"
+  hide-board="false"
+  use-custom-models="false"
+  reset-position="0 0 2.5">
+  <bs-gizmo type="position" attribute="position"/>
+  <bs-gizmo type="box" attribute="position" size="2 0.05 2"/>
+</bs-snippet>
+<!-- end snippet section -->
+```
+
+- Settings are the same as the script attributes above. `position` and `rotation` are Unity world values, and `scale` can be a single number.
+- Each placement is its own game. Its sync id is `room`, or the placement's own id when `room` is empty. Give placements the same `room` to share one game.
+- An empty setting uses the game's default.
+- The Scene-view gizmo shows the board at its default size; it does not follow `scale`.
+- Unity reads the snippet section as XML: quote every attribute, close every element, and write `&` as `&amp;`.
+
 ## Usage
 
 1.  **Local Testing**:

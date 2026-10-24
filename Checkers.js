@@ -1,4 +1,6 @@
 (function () {
+    // One game per copy of this script, so several boards on a page don't share a game.
+    let checkersGame = null;
     
     /**
      * BanterCheckers Unified Embed Script
@@ -530,9 +532,9 @@
 
         btn.On('click', () => {
             console.log("Resetting game...");
-            window.checkersGame.reset();
+            checkersGame.reset();
 
-            const boardState = window.checkersGame.getBoardState();
+            const boardState = checkersGame.getBoardState();
             const stateKey = `checkers_game_${config.instance}`;
             BS.BanterScene.GetInstance().SetPublicSpaceProps({ [stateKey]: JSON.stringify(boardState) });
 
@@ -766,7 +768,7 @@
                 trans.localPosition = new BS.Vector3(0, 0, 0);
             }
 
-            const gameState = window.checkersGame.getBoardState();
+            const gameState = checkersGame.getBoardState();
             const board = gameState.board;
 
             // Build map of what should exist
@@ -832,7 +834,7 @@
 
     function setMaterialColor(go, hexColor) {
         if (!go) return;
-        const mat = go.GetComponent(BS.ComponentType.BanterMaterial);
+        const mat = go.GetComponent((BS.ComponentType.Material ?? BS.ComponentType.BanterMaterial));
         if (mat) {
             const newColor = hexToVector4(hexColor);
             if (config.hideBoard && go.name.startsWith("Tile_")) {
@@ -847,7 +849,7 @@
     }
 
     function handleSquareClick(squareId) {
-        const game = window.checkersGame;
+        const game = checkersGame;
         if (game.winner) return; // Game is over, do nothing
 
         const [row, col] = squareToRowCol(squareId);
@@ -961,7 +963,7 @@
                     try {
                         const gameState = JSON.parse(val);
                         console.log("Syncing game state from space:", gameState);
-                        window.checkersGame.loadBoardState(gameState);
+                        checkersGame.loadBoardState(gameState);
                         syncBoard();
                     } catch (err) {
                         console.error("Error parsing game state:", err);
@@ -976,7 +978,7 @@
             try {
                 const gameState = JSON.parse(initialVal);
                 console.log("Loaded initial game state:", gameState);
-                window.checkersGame.loadBoardState(gameState);
+                checkersGame.loadBoardState(gameState);
                 syncBoard();
             } catch (err) {
                 console.error("Error parsing initial game state:", err);
@@ -992,8 +994,8 @@
         console.log("Checkers: Initializing Game...");
 
         await loadDependencies();
-        if (!window.checkersGame) {
-            window.checkersGame = new CheckersGame();
+        if (!checkersGame) {
+            checkersGame = new CheckersGame();
         }
 
         // Convert config arrays to BS.Vector3 now that BS is available

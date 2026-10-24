@@ -1,25 +1,21 @@
-# BanterCheckers
+# Checkers
 
-A multiplayer checkers game designed for **BanterVR**, built with **Banter Space State** (Serverless).
+A synced multiplayer 8×8 checkers board (American rules). Made for **SideQuest / AltspaceVR** worlds, and it also works in **Banter**.
+
+There is no server: players stay in sync through the space's shared state, and the game is plain static files served from <https://checkers.firer.at>.
+
+To try it, open <https://checkers.firer.at> in Altspace or Banter.
 
 ## Features
-- **3D Checkers Board**: Traditional 8x8 checkers board with geometric pieces
-- **Real-time Multiplayer**: Synchronizes moves between players using Banter's Space State
-- **Standard Rules**: American checkers with forced jumps, multi-jumps, and king promotion
-- **BanterVR Ready**: Embeddable in any Banter space with customizable positioning and scaling
-- **Serverless**: Runs entirely client-side, no backend server required
 
-## Prerequisites
-- A web host (GitHub Pages, Netlify, Vercel, etc.) or a local web server for testing.
+- Forced jumps, multi-jumps and kings
+- Reset button
+- Several independent boards in one world
+- Built-in pieces or GLB models
 
-## Installation
+## Add it to an Altspace world (snippet)
 
-1.  Clone the repository.
-2.  That's it! No build process is required.
-
-## SideQuest / Altspace Creator SDK (Snippet)
-
-In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `checkers`. Or paste it into `Assets/WebRoot/index.html` between the snippet section comments:
+In a Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `checkers`. Or paste this into `Assets/WebRoot/index.html`, between the snippet section comments:
 
 ```html
 <!-- snippet section -->
@@ -42,88 +38,61 @@ In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin
 <!-- end snippet section -->
 ```
 
-- Settings are the same as the script attributes above. `position` and `rotation` are Unity world values, and `scale` can be a single number.
 - Each placement is its own game. Its sync id is `room`, or the placement's own id when `room` is empty. Give placements the same `room` to share one game.
-- An empty setting uses the game's default.
+- `position` and `rotation` are Unity world values, and `scale` can be a single number. The other settings are listed under [Settings](#settings). An empty setting uses the default.
 - The Scene-view gizmo shows the board at its default size; it does not follow `scale`.
 - Unity reads the snippet section as XML: quote every attribute, close every element, and write `&` as `&amp;`.
 
-## Usage
+## Add it with a script tag
 
-1.  **Local Testing**:
-    Serve the `public` folder using a local web server (e.g., Live Server in VS Code, or `python -m http.server`).
+This works in an Altspace world's `Assets/WebRoot/index.html` (outside the snippet section) and in a Banter space's HTML:
 
-2.  **How to Play Checkers**:
-    - **Click a piece** to select it (green highlight shows selected piece, blue highlights show valid moves)
-    - **Click a valid square** (blue highlight) to move
-    - **Jumps**: You must jump (capture) opponent pieces if possible
-    - **Multi-jumps**: If you can continue jumping after a capture, you must do so
-    - **King Promotion**: Pieces reaching the opposite end become kings (shown with gold crown)
-    - **Kings**: Can move and jump both forward and backward
-    
-## Project Structure
-- `js/embed.js`: Checkers game logic and Banter integration
-
-## BanterVR Integration
-
-To embed in BanterVR, add the embed script to your space's HTML. The game will automatically synchronize between all players in the space.
-
-### Basic Embedding
-
-Add this to your Banter space HTML:
 ```html
-<script src="https://banter-checkers.firer.at/checkers.js"></script>
+<script src="https://checkers.firer.at/Checkers.js" position="0 1.1 -2" scale="1.5" rotation="0 45 0"></script>
 ```
 
-### Configuration
+For more than one board in a space, give each one its own `instance`:
 
-Customize the board's appearance and behavior using **HTML script attributes** (recommended) or legacy **URL query parameters** (for backwards compatibility).
-
-**HTML Script Attributes Example:**
 ```html
-<script src="https://banter-checkers.firer.at/Checkers.js" boardPosition="0 1.1 -2" boardScale="1.5" boardRotation="0 45 0"></script>
+<script src="https://checkers.firer.at/Checkers.js" instance="board1" position="-2 1.1 -2"></script>
+<script src="https://checkers.firer.at/Checkers.js" instance="board2" position="2 1.1 -2"></script>
 ```
 
-**Legacy URL Query Parameters Example:**
-```html
-<script src="https://banter-checkers.firer.at/Checkers.js?boardPosition=0+1.1+-2&boardScale=1.5&boardRotation=0+45+0"></script>
-```
+Settings can also go in the URL, as in older setups: `https://checkers.firer.at/Checkers.js?boardPosition=0+1.1+-2&boardScale=0.8`.
 
-**Available Attributes / Parameters:**
-- `boardPosition` / `position` / `board-position`: Board position in 3D space as `x y z` (Default: `0 1.1 -2`)
-- `boardRotation` / `rotation` / `board-rotation`: Board rotation as `x y z` degrees (Default: `0 0 0`)
-- `boardScale` / `scale` / `board-scale`: Board scale as single value or `x y z` (Default: `1`)
-- `resetPosition` / `reset-position`: Reset button position relative to board as `x y z` (Default: `0 0 2.5`)
-- `resetRotation` / `reset-rotation`: Reset button rotation as `x y z` degrees (Default: `0 0 0`)
-- `resetScale` / `reset-scale`: Reset button scale as single value or `x y z` (Default: `1`)
-- `hideUI` / `hide-ui`: Set to `true` to hide the reset button (Default: `false`)
-- `instance`: Custom instance/room identifier (Default: current URL)
-- `hideBoard` / `hide-board`: If `true`, hides the game board. (Default: `false`)
-- `useCustomModels` / `use-custom-models`: If `true`, uses custom GLB models for the pieces instead of the default spheres. (Default: `false`)
-- `lighting`: Set to `lit` to use physically-based lit materials that respond to scene lights. (Default: `unlit`)
-- `addLights` / `add-lights`: When `lighting=lit`, this controls whether a default directional light is added. Set to `false` if you have your own lights. (Default: `true`)
+## Settings
 
-### Examples
+| Setting | Also accepted | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `instance` |  | page URL | Sync id. Boards with the same id share one game. In a snippet, use `room` instead. |
+| `boardPosition` | `position`, `board-position` | `0 1.1 -2` | Board position (x y z). |
+| `boardRotation` | `rotation`, `board-rotation` | `0 0 0` | Board rotation in degrees (x y z). |
+| `boardScale` | `scale`, `board-scale` | `1` | Board scale: one number, or x y z. |
+| `resetPosition` | `reset-position` | `0 0 2.5` | Reset button position, relative to the board. |
+| `resetRotation` | `reset-rotation` | `0 0 0` | Reset button rotation, relative to the board. |
+| `resetScale` | `reset-scale` | `1` | Reset button scale. |
+| `hideUI` | `hide-ui` | `false` | `true` hides the buttons. |
+| `hideBoard` | `hide-board` | `false` | `true` hides the board, e.g. to use your own. |
+| `useCustomModels` | `use-custom-models` | `false` | `true` uses the GLB models in `Models/` for the pieces instead of built-in shapes. |
+| `lighting` |  | `unlit` | `lit` uses materials that react to scene lights. |
+| `addLights` | `add-lights` | `true` | With `lighting="lit"`, adds a directional light. Set `false` if the world has its own. |
 
-**Multiple boards in the same space (using Attributes):**
-```html
-<!-- Board 1: Center -->
-<script src="https://banter-checkers.firer.at/Checkers.js" instance="board1" boardPosition="0 1 -2"></script>
+Settings can be written as `boardPosition` or `board-position`; the snippet uses the hyphenated form.
 
-<!-- Board 2: To the right -->
-<script src="https://banter-checkers.firer.at/Checkers.js" instance="board2" boardPosition="3 1 -2"></script>
-```
+## How to play
 
-**Rotated board (using Attributes):**
-```html
-<script src="https://banter-checkers.firer.at/Checkers.js" boardRotation="0 45 0"></script>
-```
+1. Click one of your pieces. Green shows the selected piece, blue shows where it can go.
+2. Click a blue square to move.
+3. If you can jump an opponent's piece, you must. Keep jumping while you can.
+4. A piece that reaches the far side becomes a king (gold crown) and can move backwards.
 
-**Larger board without UI (using Attributes):**
-```html
-<script src="https://banter-checkers.firer.at/Checkers.js" boardScale="2" hideUI="true"></script>
-```
+## Files
+
+- `Checkers.js`: the game.
+- `Models/`: piece models for `use-custom-models`.
+- `snippet.js`, `snippet.html`: the Creator SDK snippet and its definition.
+- `index.html`: a test page with a floor and the game.
 
 ## License
 
-MIT
+GPL-3.0. See [LICENSE](LICENSE).

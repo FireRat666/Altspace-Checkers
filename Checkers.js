@@ -469,7 +469,6 @@
         boardRoot: null,
         piecesRoot: null,
         listenersSetup: false,
-        isSyncing: false,
         tileSize: 0.5,
         boardSize: 8,
         offset: 0
@@ -750,75 +749,87 @@
         }
     }
 
-    async function syncBoard() {
-        // Prevent multiple simultaneous syncs
-        if (state.isSyncing) {
-            console.log("Sync already in progress, skipping...");
-            return;
+    // Redraws can overlap (e.g. loading saved state on join while the first sync event
+    // arrives). Two overlapping redraws both create a piece for the same empty slot and one
+    // gets orphaned, so it is never hidden again (e.g. after a reset). Run one at a time,
+    // and redraw once more if a new one was requested mid-run.
+    let redrawing = null;
+    let redrawAgain = false;
+    function syncBoard() {
+        redrawAgain = true;
+        if (!redrawing) {
+            redrawing = (async () => {
+                try {
+                    while (redrawAgain) {
+                        redrawAgain = false;
+                        await renderBoard();
+                    }
+                } finally {
+                    redrawing = null;
+                }
+            })();
         }
+        return redrawing;
+    }
 
-        state.isSyncing = true;
+    async function renderBoard() {
         console.log("Syncing board...");
 
-        try {
-            if (!state.piecesRoot) {
-                state.piecesRoot = await new BS.GameObject("PiecesContainer").Async();
-                await state.piecesRoot.SetParent(state.boardRoot, false);
-                let trans = await state.piecesRoot.AddComponent(new BS.Transform());
-                trans.localPosition = new BS.Vector3(0, 0, 0);
-            }
-
-            const gameState = checkersGame.getBoardState();
-            const board = gameState.board;
-
-            // Build map of what should exist
-            const targetPieces = {};
-            for (let row = 0; row < 8; row++) {
-                for (let col = 0; col < 8; col++) {
-                    const pieceChar = board[row][col];
-                    if (pieceChar) {
-                        const squareId = rowColToSquare(row, col);
-                        targetPieces[squareId] = pieceChar;
-                    }
-                }
-            }
-
-            // Track what we'll keep
-            const newPieces = {};
-
-            // Update/keep existing pieces where possible
-            for (const [squareId, piece] of Object.entries(state.pieces)) {
-                const targetPiece = targetPieces[squareId];
-
-                if (targetPiece === piece.pieceType) {
-                    // Piece is already in the right place with right type - keep it
-                    newPieces[squareId] = piece;
-                    delete targetPieces[squareId];
-                } else {
-                    // Piece needs to be removed (captured or moved)
-                    if (piece && !piece.destroyed) {
-                        piece.Destroy();
-                    }
-                }
-            }
-
-            // Create any missing pieces (new positions or promotions) - Parallelized
-            const creationPromises = [];
-            for (const [squareId, pieceChar] of Object.entries(targetPieces)) {
-                creationPromises.push((async () => {
-                    const piece = await createPiece(pieceChar, squareId, state.piecesRoot);
-                    if (piece) {
-                        newPieces[squareId] = piece;
-                    }
-                })());
-            }
-            await Promise.all(creationPromises);
-
-            state.pieces = newPieces;
-            console.log("Board sync complete - optimized update.");
-        } finally {
-            state.isSyncing = false;
+        if (!state.piecesRoot) {
+            state.piecesRoot = await new BS.GameObject("PiecesContainer").Async();
+            await state.piecesRoot.SetParent(state.boardRoot, false);
+            let trans = await state.piecesRoot.AddComponent(new BS.Transform());
+            trans.localPosition = new BS.Vector3(0, 0, 0);
         }
+
+        const gameState = checkersGame.getBoardState();
+        const board = gameState.board;
+
+        // Build map of what should exist
+        const targetPieces = {};
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const pieceChar = board[row][col];
+                if (pieceChar) {
+                    const squareId = rowColToSquare(row, col);
+                    targetPieces[squareId] = pieceChar;
+                }
+            }
+        }
+
+        // Track what we'll keep
+        const newPieces = {};
+
+        // Update/keep existing pieces where possible
+        for (const [squareId, piece] of Object.entries(state.pieces)) {
+            const targetPiece = targetPieces[squareId];
+
+            if (targetPiece === piece.pieceType) {
+                // Piece is already in the right place with right type - keep it
+                newPieces[squareId] = piece;
+                delete targetPieces[squareId];
+            } else {
+                // Piece needs to be removed (captured or moved)
+                if (piece && !piece.destroyed) {
+                    piece.Destroy();
+                }
+            }
+        }
+
+        // Create any missing pieces (new positions or promotions) - Parallelized
+        const creationPromises = [];
+        for (const [squareId, pieceChar] of Object.entries(targetPieces)) {
+            creationPromises.push((async () => {
+                const piece = await createPiece(pieceChar, squareId, state.piecesRoot);
+                if (piece) {
+                    newPieces[squareId] = piece;
+                }
+            })());
+        }
+        await Promise.all(creationPromises);
+
+        state.pieces = newPieces;
+        console.log("Board sync complete - optimized update.");
     }
 
     async function getSpaceStateValue(key) {

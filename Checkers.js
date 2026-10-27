@@ -17,10 +17,11 @@
         resetScale: [1, 1, 1],
         instance: window.location.href.split('?')[0],
         hideUI: false,
+        turnCooldown: 5, // Seconds before the same person can move for the other side; 0 = off
         hideBoard: false,
-        useCustomModels: false,
-        lighting: 'unlit',
-        addLights: true
+        useCustomModels: true,
+        lighting: 'lit',
+        addLights: false
     };
 
     // Helper to parse Vector3 from string - now returns array [x,y,z]
@@ -84,6 +85,7 @@
                 boardRotation: ['rotation', 'board-rotation'],
                 boardScale: ['scale', 'board-scale'],
                 hideUI: ['hide-ui'],
+                turnCooldown: ['turn-cooldown'],
                 hideBoard: ['hide-board'],
                 useCustomModels: ['use-custom-models'],
                 addLights: ['add-lights'],
@@ -120,10 +122,15 @@
         };
 
         config.hideUI = getParam('hideUI', String(config.hideUI)) === 'true';
+        config.turnCooldown = parseFloat(getParam('turnCooldown', String(config.turnCooldown)));
+        if (isNaN(config.turnCooldown)) config.turnCooldown = 5;
         config.hideBoard = getParam('hideBoard', String(config.hideBoard)) === 'true';
         config.instance = getParam('instance', config.instance);
         config.useCustomModels = getParam('useCustomModels', String(config.useCustomModels)) === 'true';
         config.lighting = getParam('lighting', config.lighting);
+        // 'lit' is a true/false switch (a checkbox in the snippet editor); it overrides 'lighting'.
+        const litParam = getParam('lit', null);
+        if (litParam !== null) config.lighting = litParam === 'true' ? 'lit' : 'unlit';
         config.addLights = getParam('addLights', String(config.addLights)) !== 'false';
 
         config.boardScale = parseVector3(getParam('boardScale'), config.boardScale);
@@ -132,6 +139,11 @@
 
         config.resetPosition = parseVector3(getParam('resetPosition'), config.resetPosition);
         config.resetRotation = parseVector3(getParam('resetRotation'), config.resetRotation);
+        config.scoreboardPosition = parseVector3(getParam('scoreboardPosition'), null);
+        // 0 0 0 means automatic (the turn sign's default spot)
+        if (config.scoreboardPosition && config.scoreboardPosition.every(n => n === 0)) config.scoreboardPosition = null;
+        config.scoreboardRotation = parseVector3(getParam('scoreboardRotation'), null);
+        config.scoreboardScale = parseVector3(getParam('scoreboardScale'), null);
         config.resetScale = parseVector3(getParam('resetScale'), config.resetScale);
     }
 
@@ -502,11 +514,25 @@
 
         await generateTiles();
 
-        if (!config.hideUI) {
-            await createResetButton();
-        }
+        // With hideUI the reset button is invisible but still clickable, with its label showing (as in Go)
+        await createResetButton();
+        await createTurnBoard(state.boardRoot, config.scoreboardPosition || [0, 1.5, 0], config.scoreboardRotation || [0, 0, 0], config.scoreboardScale || [1, 1, 1], 2.4, 0.4, true);
 
         setupGameListeners();
+    }
+
+    // Puts a text label on a button's face (same approach as Go's buttons). `w` and `h` are the
+    // face size in metres; text is sized to fit it. `pos`/`rot` place the label on that face.
+    async function addButtonLabel(btn, text, w, h, pos, rot) {
+        const label = await new BS.GameObject("Label").Async();
+        await label.SetParent(btn, false);
+        const lt = await label.AddComponent(new BS.Transform());
+        lt.localPosition = pos;
+        lt.localEulerAngles = rot;
+        await label.AddComponent(new BS.BanterText(
+            text, new BS.Vector4(1, 1, 1, 1), BS.HorizontalAlignment.Center, BS.VerticalAlignment.Center,
+            h * 5, false, false, new BS.Vector2(w * 10, h * 10)
+        ));
     }
 
     async function createResetButton() {
@@ -522,12 +548,13 @@
         const geoArgs = [BS.GeometryType.BoxGeometry, null, w, h, d, 1, 1, 1, 0.5, 24, 0, 6.28, 0, 6.28, 8, false, 0.5, 0.5, 0, 1, 24, 8, 0.4, 16, 6.28, 2, 3, 5, 5, 0, ""];
         await btn.AddComponent(new BS.BanterGeometry(...geoArgs));
 
-        const redColor = new BS.Vector4(0.8, 0.2, 0.2, 1);
-        const shader = config.lighting === 'lit' ? "Standard" : "Unlit/Diffuse";
+        const redColor = new BS.Vector4(0.8, 0.2, 0.2, config.hideUI ? 0 : 1);
+        const shader = config.hideUI ? "Unlit/DiffuseTransparent" : (config.lighting === 'lit' ? "Standard" : "Unlit/Diffuse");
         await btn.AddComponent(new BS.BanterMaterial(shader, "", redColor, BS.MaterialSide.Front, false));
 
         await btn.AddComponent(new BS.BoxCollider(true, new BS.Vector3(0, 0, 0), new BS.Vector3(w, h, d)));
         await btn.SetLayer(5);
+        await addButtonLabel(btn, "RESET", 1.0, 0.4, new BS.Vector3(0, 0.105, 0), new BS.Vector3(90, 180, 0));
 
         btn.On('click', () => {
             console.log("Resetting game...");
@@ -603,11 +630,12 @@
         const color = hexToVector4(colorHex);
         color.w = opacity;
 
+        // See-through objects need the transparent shader, even when lit
         let shader = "Unlit/Diffuse";
-        if (config.lighting === 'lit') {
-            shader = "Standard";
-        } else if (opacity < 1.0 || (config.hideBoard && isTile)) {
+        if (opacity < 1.0 || (config.hideBoard && isTile)) {
             shader = "Unlit/DiffuseTransparent";
+        } else if (config.lighting === 'lit') {
+            shader = "Standard";
         }
 
         // Tiles need unique material instances for dynamic color highlighting
@@ -763,6 +791,7 @@
                     while (redrawAgain) {
                         redrawAgain = false;
                         await renderBoard();
+                        updateTurnBoard();
                     }
                 } finally {
                     redrawing = null;
@@ -859,9 +888,99 @@
         }
     }
 
+    // --- Turn cooldown ---
+    // Stops one person from taking both sides' turns by accident (a double click, or moving again
+    // before the other player has had a chance). After you move, if it is now the other side's
+    // turn, you must wait `turnCooldown` seconds before you can move for them. Someone playing on
+    // their own can still play both sides; they just wait. Extra turns for the same side are not
+    // affected. The time is only ever compared on the mover's own clock.
+    const turnGuard = { lastMove: null, notice: '', noticeTimer: null, texts: [] };
+
+    function localUid() {
+        const user = BS.BanterScene.GetInstance().localUser;
+        return user && user.uid !== undefined ? String(user.uid) : null;
+    }
+
+    // True (and shows a notice) if the local user has to wait before moving for `side`.
+    function turnOnCooldown(side) {
+        const m = turnGuard.lastMove;
+        const uid = localUid();
+        if (!m || !uid || !(config.turnCooldown > 0) || m.uid !== uid || m.side === side) return false;
+        const left = config.turnCooldown * 1000 - (Date.now() - m.at);
+        if (left <= 0) return false;
+        showTurnNotice(`Other player's turn (${Math.ceil(left / 1000)}s)`);
+        return true;
+    }
+
+    // Marks outgoing state as a move by the local user for `side`.
+    function stampMove(data, side) {
+        turnGuard.lastMove = { uid: localUid(), side, at: Date.now() };
+        data.lastMove = turnGuard.lastMove;
+        return data;
+    }
+
+    // Call with every state loaded from the space. A reset has no lastMove, which clears it.
+    function loadLastMove(data) {
+        turnGuard.lastMove = (data && data.lastMove) || null;
+    }
+
+    function showTurnNotice(text) {
+        turnGuard.notice = text;
+        clearTimeout(turnGuard.noticeTimer);
+        turnGuard.noticeTimer = setTimeout(() => {
+            turnGuard.notice = '';
+            updateTurnBoard();
+        }, 2500);
+        updateTurnBoard();
+    }
+
+    function updateTurnBoard() {
+        const text = turnGuard.notice || turnStatusText();
+        turnGuard.texts.forEach(t => { t.text = text; });
+    }
+
+    // A small sign showing whose turn it is. Not created when hideUI is on. `twoSided` puts the
+    // text on both faces, for table games played from both sides.
+    async function createTurnBoard(parent, pos, rot, scale, w, h, twoSided) {
+        if (config.hideUI) return;
+        const v3 = a => Array.isArray(a) ? new BS.Vector3(...a) : a;
+        const board = await new BS.GameObject("TurnBoard").Async();
+        await board.SetParent(parent, false);
+        const t = await board.AddComponent(new BS.Transform());
+        t.localPosition = v3(pos);
+        t.localEulerAngles = v3(rot);
+        t.localScale = v3(scale);
+        await board.AddComponent(new BS.BanterGeometry(BS.GeometryType.BoxGeometry, null, w, h, 0.02));
+        const shader = config.lighting === 'lit' ? "Standard" : "Unlit/Diffuse";
+        await board.AddComponent(new BS.BanterMaterial(shader, "", new BS.Vector4(0.96, 0.96, 0.86, 1), BS.MaterialSide.Front, false));
+
+        const faces = twoSided ? [[0.012, 180], [-0.012, 0]] : [[0.012, 180]];
+        for (const [z, yRot] of faces) {
+            const textObj = await new BS.GameObject("TurnText").Async();
+            await textObj.SetParent(board, false);
+            const tt = await textObj.AddComponent(new BS.Transform());
+            tt.localPosition = new BS.Vector3(0, 0, z);
+            tt.localEulerAngles = new BS.Vector3(0, yRot, 0);
+            turnGuard.texts.push(await textObj.AddComponent(new BS.BanterText(
+                "", new BS.Vector4(0, 0, 0, 1), BS.HorizontalAlignment.Center, BS.VerticalAlignment.Center,
+                h * 3, false, true, new BS.Vector2(w * 10, h * 10)
+            )));
+        }
+        updateTurnBoard();
+    }
+
+    function turnStatusText() {
+        const g = checkersGame;
+        const name = p => p === 'red' ? 'Red' : 'Black';
+        if (g.winner) return `${name(g.winner)} wins!`;
+        return `${name(g.currentPlayer)}'s turn`;
+    }
+
     function handleSquareClick(squareId) {
         const game = checkersGame;
         if (game.winner) return; // Game is over, do nothing
+        if (turnOnCooldown(game.currentPlayer)) return;
+        const side = game.currentPlayer;
 
         const [row, col] = squareToRowCol(squareId);
         const stateKey = `checkers_game_${config.instance}`;
@@ -876,7 +995,7 @@
             };
 
             if (game.makeMove(move)) {
-                const boardState = game.getBoardState();
+                const boardState = stampMove(game.getBoardState(), side);
                 BS.BanterScene.GetInstance().SetPublicSpaceProps({ [stateKey]: JSON.stringify(boardState) });
                 syncBoard();
                 clearSelection();
@@ -927,7 +1046,7 @@
         console.log("Attempting move:", move, "Current player:", game.currentPlayer);
         if (game.makeMove(move)) {
             console.log("Move successful!");
-            const boardState = game.getBoardState();
+            const boardState = stampMove(game.getBoardState(), side);
             BS.BanterScene.GetInstance().SetPublicSpaceProps({ [stateKey]: JSON.stringify(boardState) });
             syncBoard();
             clearSelection();
@@ -973,6 +1092,7 @@
                 if (val) {
                     try {
                         const gameState = JSON.parse(val);
+                        loadLastMove(gameState);
                         console.log("Syncing game state from space:", gameState);
                         checkersGame.loadBoardState(gameState);
                         syncBoard();
@@ -988,6 +1108,7 @@
         if (initialVal) {
             try {
                 const gameState = JSON.parse(initialVal);
+                loadLastMove(gameState);
                 console.log("Loaded initial game state:", gameState);
                 checkersGame.loadBoardState(gameState);
                 syncBoard();

@@ -75,6 +75,7 @@
         <div class="code-header">Script tag</div>
         <pre><code>&lt;script src=&quot;https://checkers.firer.at/Checkers.js&quot; position=&quot;0 1.1 -2&quot; scale=&quot;1.5&quot; rotation=&quot;0 45 0&quot;&gt;&lt;/script&gt;</code></pre>
         <p>All the settings are listed on <a href="https://github.com/FireRat666/Banter-Checkers#settings" target="_blank">GitHub</a>.</p>
+        <p>A position of <code>0 0 0</code> means automatic: the turn sign sits in its default spot next to the board. Any other value places it relative to the board.</p>
       </section>
 
       <section class="info-block">
@@ -133,7 +134,30 @@
        Checkers embed
        Customize via URL params in the src attribute!
     -->
-    <script src="Checkers.js?boardPosition=0+0.7+-2&boardScale=0.7&useCustomModels=true&lighting=lit&addLights=true&hideBoard=false"></script>
+    <!-- snippet section -->
+    <bs-snippet name="checkers" title="Checkers"
+      description="Synced multiplayer checkers board with a reset button."
+      script="https://checkers.firer.at/snippet.js"
+      room=""
+      position="0 0.7 3"
+      rotation="0 0 0"
+      scale="1"
+      lit="true"
+      add-lights="false"
+      turn-cooldown="5"
+      hide-ui="false"
+      hide-board="false"
+      use-custom-models="true"
+      reset-position="0 0 2.5"
+      reset-rotation="0 0 0"
+      reset-scale="1"
+      scoreboard-position="0 0 0"
+      scoreboard-rotation="0 0 0"
+      scoreboard-scale="1">
+      <bs-gizmo type="position" attribute="position"/>
+      <bs-gizmo type="box" attribute="position" size="2 0.05 2"/>
+    </bs-snippet>
+    <!-- end snippet section -->
 </body>
 
 </html>

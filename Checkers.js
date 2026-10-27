@@ -512,6 +512,7 @@
 
         console.log("Checkers Board Initialized with Config:", config);
 
+        if (!config.hideBoard) await createBoardFrame();
         await generateTiles();
 
         // With hideUI the reset button is invisible but still clickable, with its label showing (as in Go)
@@ -519,6 +520,22 @@
         await createTurnBoard(state.boardRoot, config.scoreboardPosition || [0, 1.5, 0], config.scoreboardRotation || [0, 0, 0], config.scoreboardScale || [1, 1, 1], 2.4, 0.4, true);
 
         setupGameListeners();
+    }
+
+    // A wooden frame round the squares, a little higher than them.
+    async function createBoardFrame() {
+        const span = state.boardSize * state.tileSize;
+        const rail = 0.18;
+        const edge = span / 2 + rail / 2;
+        const bars = [
+            [0, edge, span + rail * 2, rail], [0, -edge, span + rail * 2, rail],
+            [edge, 0, rail, span], [-edge, 0, rail, span]
+        ];
+        for (let i = 0; i < bars.length; i++) {
+            const [x, z, w, d] = bars[i];
+            await createBanterObject(`Frame_${i}`, state.boardRoot, new BS.Vector3(x, -0.04, z),
+                '#4A2C16', BS.GeometryType.BoxGeometry, { width: w, height: 0.14, depth: d });
+        }
     }
 
     // Puts a text label on a button's face (same approach as Go's buttons). `w` and `h` are the
@@ -689,7 +706,7 @@
             if (config.useCustomModels) {
                 pos.y = 0.05; // Pivot at 0
             } else {
-                pos.y = isKing ? 0.075 : 0.05; // Spheres are centered, so half-height offset
+                pos.y = 0; // Plain pieces are built up from the board surface
             }
             transform.localPosition = pos;
 
@@ -725,42 +742,33 @@
                 await piece.AddComponent(new BS.BoxCollider(true, new BS.Vector3(0, colHeight / 2, 0), new BS.Vector3(radius * 2, colHeight, radius * 2)));
 
             } else {
-                // Create rounded piece (flattened sphere)
-                const height = isKing ? 0.15 : 0.1;
-                const yScale = height / (radius * 2);
-                transform.localScale = new BS.Vector3(1, yScale, 1);
-
-                const geoArgs = [
-                    BS.GeometryType.SphereGeometry, null, 1, 1, 1, 24, 16, 1,
-                    radius, 24, 0, 6.283185, 0, 6.283185, 8, false,
-                    radius, radius, 0, 1, 24, 8, 0.4, 16, 6.283185, 2, 3, 5, 5, 0, ""
-                ];
-                await piece.AddComponent(new BS.BanterGeometry(...geoArgs));
-                await piece.AddComponent(new BS.BanterMaterial(shader, "", color, BS.MaterialSide.Front, false));
-
-                // Add king crown if needed (only for sphere mode)
-                if (isKing) {
-                    const crown = await new BS.GameObject(`Crown_${Math.random().toString(36).substr(2, 5)}`).Async();
-                    await crown.SetParent(piece, false);
-
-                    let crownTrans = await crown.AddComponent(new BS.Transform());
-                    crownTrans.localPosition = new BS.Vector3(0, 0.08 / yScale, 0);
-                    crownTrans.localScale = new BS.Vector3(1, 1 / yScale, 1);
-
-                    const crownArgs = [
-                        BS.GeometryType.CylinderGeometry, null, 1, 1, 1, 1, 1, 1,
-                        radius * 1.2, 24, 0, 6.283185, 0, 6.283185, 8, false,
-                        radius * 1.2, radius * 1.2, 0, 1, 24, 8, 0.4, 16, 6.283185, 2, 3, 5, 5, 0, ""
-                    ];
-                    crownArgs[3] = 0.03;
-                    await crown.AddComponent(new BS.BanterGeometry(...crownArgs));
-
-                    const crownColor = hexToVector4(COLORS.kingCrown);
-                    await crown.AddComponent(new BS.BanterMaterial(shader, "", crownColor, BS.MaterialSide.Front, false));
+                // A flat checker: a disc with a ring pressed into its top. A king is two discs
+                // stacked, with a gold band between them and a gold centre.
+                const discH = 0.045;
+                const levels = isKing ? 2 : 1;
+                const top = levels * 0.05;
+                const tint = (v, f) => new BS.Vector4(v.x * f, v.y * f, v.z * f, 1);
+                const ringColor = isRed ? tint(color, 0.7) : new BS.Vector4(0.3, 0.3, 0.3, 1);
+                const gold = hexToVector4(COLORS.kingCrown);
+                const addDisc = async (r, h, y, colorV) => {
+                    const disc = await new BS.GameObject("Disc").Async();
+                    await disc.SetParent(piece, false);
+                    const dt = await disc.AddComponent(new BS.Transform());
+                    dt.localPosition = new BS.Vector3(0, y, 0);
+                    await disc.AddComponent(new BS.BanterGeometry(
+                        BS.GeometryType.CylinderGeometry, null, 1, h, 1, 1, 1, 1,
+                        r, 32, 0, 6.283185, 0, 6.283185, 8, false, r, r
+                    ));
+                    await disc.AddComponent(new BS.BanterMaterial(shader, "", colorV, BS.MaterialSide.Front, false));
+                };
+                for (let i = 0; i < levels; i++) {
+                    await addDisc(radius, discH, i * 0.05 + discH / 2, color);
                 }
+                if (isKing) await addDisc(radius + 0.005, 0.01, 0.05 - 0.0025, gold);
+                await addDisc(0.14, 0.006, top - 0.005 + 0.003, ringColor);
+                await addDisc(0.11, 0.008, top - 0.005 + 0.004, isKing ? gold : color);
 
-                // Smaller collider positioned at top of piece to avoid blocking tile clicks
-                await piece.AddComponent(new BS.BoxCollider(true, new BS.Vector3(0, 0.15 / yScale, 0), new BS.Vector3(0.2, 0.15 / yScale, 0.2)));
+                await piece.AddComponent(new BS.BoxCollider(true, new BS.Vector3(0, top / 2, 0), new BS.Vector3(0.3, top, 0.3)));
             }
             await piece.SetLayer(5);
 

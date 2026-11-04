@@ -9,7 +9,7 @@
     <meta name="color-scheme" content="dark">
     <meta name="theme-color" content="#00ff44">
     <title>Checkers for AltspaceVR &amp; BanterVR | Embed 3D Multiplayer Checkers | FireR.at</title>
-    <meta name="description" content="Embed a synced 3D multiplayer Checkers board with forced jumps, king promotion, and a reset button into your AltspaceVR (altvr.app, the new Altspace) world or BanterVR space.">
+    <meta name="description" content="Embed a synced 3D multiplayer Checkers board with forced jumps, king promotion, and seat locking into your AltspaceVR (altvr.app, the new Altspace) world or BanterVR space.">
     <meta name="keywords" content="Altspace Checkers, AltspaceVR Checkers, Banter Checkers, BanterVR Checkers, altvr.app, the new Altspace, VR board games, Altspace snippet checkers, FireRat">
     <meta name="author" content="FireRat">
     <meta name="robots" content="index, follow">
@@ -99,12 +99,12 @@
         <div class="code-header">Script tag</div>
         <pre><code>&lt;script src=&quot;https://checkers.firer.at/Checkers.js&quot; position=&quot;0 1.1 -2&quot; scale=&quot;1.5&quot; rotation=&quot;0 45 0&quot;&gt;&lt;/script&gt;</code></pre>
         <p>All the settings are listed on <a href="https://github.com/FireRat666/Banter-Checkers#settings" target="_blank">GitHub</a>.</p>
-        <p>A position of <code>0 0 0</code> means automatic: the turn sign sits in its default spot next to the board. Any other value places it relative to the board.</p>
+        <p>A position of <code>0 0 0</code> means automatic: the UI panel sits just above the board. Any other value places it relative to the board.</p>
       </section>
 
       <section class="info-block">
         <h2>Features</h2>
-        <ul><li>Forced jumps, multi-jumps and kings</li><li>Reset button</li><li>Several independent boards in one world</li><li>Built-in pieces or GLB models</li></ul>
+        <ul><li>Forced jumps, multi-jumps and kings</li><li>A turn panel with seats, Reset and Mute</li><li>Seat locking</li><li>Switches itself off when you are far away</li><li>Several independent boards in one world</li><li>Built-in pieces or GLB models</li></ul>
       </section>
 
       <section class="info-block">
@@ -114,7 +114,7 @@
     </main>
 
     <footer>
-      <p>Synced multiplayer checkers board with a reset button. Open <a href="https://checkers.firer.at">checkers.firer.at</a> as a space in Altspace or Banter to try it.</p>
+      <p>Synced multiplayer checkers board with seat locking. Open <a href="https://checkers.firer.at">checkers.firer.at</a> as a space in Altspace or Banter to try it.</p>
       <p>&copy; <span class="fire-year"></span> <a href="https://firer.at/">FireR.at</a></p>
     </footer>
   </div>
@@ -176,7 +176,7 @@
     -->
     <!-- snippet section -->
     <bs-snippet name="checkers" title="Checkers"
-      description="Synced multiplayer checkers board with a reset button."
+      description="Synced multiplayer checkers board with seat locking."
       script="https://checkers.firer.at/snippet.js"
       room=""
       position="0 0.5 3"
@@ -185,18 +185,14 @@
       lit="true"
       add-lights="false"
       turn-cooldown="5"
+      lock-timeout="90"
+      cull-distance="20"
       sound-volume="0.4"
       sound-near="2.5"
       sound-far="10"
       hide-ui="false"
       hide-board="false"
       use-custom-models="true"
-      reset-position="0 0 2.5"
-      reset-rotation="0 0 0"
-      reset-scale="1"
-      mute-position="0 0 0"
-      mute-rotation="0 0 0"
-      mute-scale="1"
       scoreboard-position="0 0 0"
       scoreboard-rotation="0 0 0"
       scoreboard-scale="1">

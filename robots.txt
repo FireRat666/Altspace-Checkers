@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://checkers.firer.at/sitemap.xml
